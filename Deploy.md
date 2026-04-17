@@ -1,88 +1,138 @@
-# Deploy do ProdAPS
+# Deploy do ProdAPS na VPS Hostinger com CloudPanel
 
-Este guia cobre o deploy do ProdAPS em uma VPS da Hostinger usando CloudPanel como painel de gerenciamento.
+Este guia cobre o deploy do ProdAPS na sua VPS Hostinger `72.60.142.2`, usando CloudPanel para gerenciar o site Node.js.
 
-O cenário assumido aqui é:
+Este documento foi ajustado para o seu cenário atual:
 
-- VPS Ubuntu 24.04
-- CloudPanel já instalado
-- domínio apontando para a VPS
-- aplicação Next.js rodando como Node.js app atrás do NGINX do CloudPanel
-- Supabase hospedando banco, auth e storage
+- VPS: `72.60.142.2`
+- domínio: `prodaps.kltecnologia.com`
+- repositório: `https://github.com/rayhenrique/klprodaps.git`
+- branch de deploy: `main`
+- app port no CloudPanel: `3016`
+- runtime recomendado: `Node 22 LTS`
 
-## Arquitetura recomendada
+## Visão geral
 
-- CloudPanel recebe o tráfego HTTPS
-- NGINX do CloudPanel faz reverse proxy para a app Node.js
-- ProdAPS roda com `next start`
+Arquitetura sugerida:
+
+- CloudPanel recebe o tráfego HTTP/HTTPS
+- NGINX do CloudPanel faz o proxy reverso para a aplicação Node.js
+- o ProdAPS roda com `next start`
 - PM2 mantém o processo online
-- Supabase fica externo à VPS
+- Supabase continua externo, como backend
 
-## Pré-requisitos
+## Requisitos
 
-- VPS ativa na Hostinger
-- acesso SSH
-- CloudPanel funcionando
-- domínio ou subdomínio configurado
-- projeto Supabase criado
-- Node.js `20.9+`
+Antes de começar, confirme:
+
+- VPS Hostinger ativa com Ubuntu 24.04
+- acesso SSH com usuário `root`
+- domínio `prodaps.kltecnologia.com` apontando para `72.60.142.2`
+- projeto Supabase já criado
+- branch `main` atualizada no GitHub
 
 Observação:
 
-O Next.js 16 exige Node.js `20.9+`. Se o CloudPanel oferecer Node 22 LTS, pode usar sem problema.
+- o Next.js 16 exige Node.js `20.9+`
+- no seu caso, pode usar `Node 22 LTS` no CloudPanel sem problema
 
-## 1. Preparar a VPS
+## 1. Apontar o domínio
 
-Na Hostinger:
+No provedor DNS do domínio `kltecnologia.com`, crie ou confirme o registro:
 
-1. Crie a VPS com Ubuntu 24.04.
-2. Instale o CloudPanel.
-3. Aponte o domínio para o IP da VPS.
-4. Acesse o CloudPanel em `https://IP-DA-VPS:8443`.
+- tipo: `A`
+- host: `prodaps`
+- valor: `72.60.142.2`
 
-## 2. Criar o site Node.js no CloudPanel
+Depois valide:
+
+```bash
+nslookup prodaps.kltecnologia.com
+```
+
+O retorno deve resolver para `72.60.142.2`.
+
+## 2. Instalar o CloudPanel na VPS
+
+Se o CloudPanel ainda não estiver instalado, conecte na VPS:
+
+```bash
+ssh root@72.60.142.2
+```
+
+Atualize o sistema:
+
+```bash
+apt update
+apt -y upgrade
+apt -y install curl wget sudo
+```
+
+Instale o CloudPanel.
+
+Exemplo com MySQL 8.4:
+
+```bash
+curl -sS https://installer.cloudpanel.io/ce/v2/install.sh -o install.sh
+echo "19cfa702e7936a79e47812ff57d9859175ea902c62a68b2c15ccd1ebaf36caeb install.sh" | sha256sum -c
+sudo DB_ENGINE=MYSQL_8.4 bash install.sh
+```
+
+Depois acesse:
+
+```text
+https://72.60.142.2:8443
+```
+
+Complete o onboarding do painel.
+
+## 3. Criar o site Node.js no CloudPanel
 
 No CloudPanel:
 
-1. Clique em `Add Site`.
-2. Escolha `Create a Node.js Site`.
-3. Informe:
-   - domínio: ex. `prodaps.seudominio.com`
-   - versão do Node.js: `20` ou `22`
-   - app port: `3000`
-4. Conclua a criação.
+1. Clique em `Add Site`
+2. Escolha `Create a Node.js Site`
+3. Preencha os campos assim:
 
-O CloudPanel cria um usuário do site e um diretório parecido com:
+- `Domain Name`: `prodaps.kltecnologia.com`
+- `Node.js Version`: `Node 22 LTS`
+- `App Port`: `3016`
+- `Site User`: `kltecnologia-prodaps`
+- `Site User Password`: gere uma senha forte
 
-```bash
-/home/<site-user>/htdocs/<dominio>/
-```
+4. Clique em `Create`
 
-## 3. Acessar via SSH
+Esse passo cria o usuário SSH do site e o diretório da aplicação.
 
-Entre por SSH com o usuário do site criado no CloudPanel.
-
-Exemplo:
+O caminho normalmente fica assim:
 
 ```bash
-ssh <site-user>@IP-DA-VPS
+/home/kltecnologia-prodaps/htdocs/prodaps.kltecnologia.com
 ```
 
-Entre na pasta do site:
+## 4. Entrar no servidor com o usuário do site
+
+Depois que o site for criado, conecte usando o usuário do site:
 
 ```bash
-cd /home/<site-user>/htdocs/<dominio>
+ssh kltecnologia-prodaps@72.60.142.2
 ```
 
-## 4. Publicar o código
-
-Opção recomendada com Git:
+Entre na pasta do projeto:
 
 ```bash
-git clone https://github.com/seu-usuario/seu-repo.git .
+cd /home/kltecnologia-prodaps/htdocs/prodaps.kltecnologia.com
 ```
 
-Se a pasta já tiver conteúdo do CloudPanel e o clone reclamar, limpe apenas o conteúdo dessa pasta do site antes do clone.
+## 5. Publicar o código da branch main
+
+Clone diretamente a branch `main`:
+
+```bash
+git clone --branch main https://github.com/rayhenrique/klprodaps.git .
+```
+
+Se a pasta já tiver arquivos criados automaticamente pelo CloudPanel e o clone reclamar, limpe apenas o conteúdo da pasta do site antes de clonar.
 
 Depois confira:
 
@@ -90,28 +140,30 @@ Depois confira:
 ls -la
 ```
 
-Você deve ver arquivos como:
+Você deve ver pelo menos:
 
 - `package.json`
 - `src/`
 - `supabase/`
 - `.env.example`
+- `next.config.ts`
 
-## 5. Configurar variáveis de ambiente
+Observação:
 
-Crie o arquivo `.env` de produção:
+- o arquivo `.env.example` faz parte do repositório e deve estar disponível logo após o `git clone`
+
+## 6. Criar o arquivo .env de produção
+
+Ainda na pasta do projeto:
 
 ```bash
 cp .env.example .env
-```
-
-Edite:
-
-```bash
 nano .env
 ```
 
-Preencha no mínimo:
+Preencha com os valores reais do Supabase e do sistema.
+
+Exemplo:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
@@ -124,45 +176,48 @@ NEXT_PUBLIC_WHATSAPP_NUMBER=5585999999999
 NEXT_PUBLIC_WHATSAPP_MESSAGE=Ola! Gostaria de conhecer o ProdAPS.
 ```
 
-Importante:
+Regras importantes:
 
-- `SUPABASE_SECRET_KEY` e `SUPABASE_SERVICE_ROLE_KEY` devem ficar apenas no servidor.
-- nunca exponha essa chave em código client-side.
+- use `SUPABASE_SECRET_KEY` ou `SUPABASE_SERVICE_ROLE_KEY` no servidor
+- nunca exponha essas chaves no client
+- não suba `.env` para o GitHub
 
-## 6. Instalar dependências
+## 7. Aplicar o banco no Supabase
+
+No SQL Editor do Supabase:
+
+1. execute [supabase/schema.sql](./supabase/schema.sql)
+2. se quiser dados iniciais, execute [supabase/seed.sql](./supabase/seed.sql)
+3. se precisar restaurar o superadmin, execute [supabase/set-superadmin.sql](./supabase/set-superadmin.sql)
+
+Faça isso antes de subir a app pela primeira vez.
+
+## 8. Instalar dependências
+
+No servidor:
 
 ```bash
 npm ci
 ```
 
-Se o `node -v` mostrar uma versão errada após trocar a versão no CloudPanel, faça logout e login novamente no SSH.
+Se o `node -v` estiver diferente da versão selecionada no CloudPanel, abra uma nova sessão SSH com o usuário do site.
 
-## 7. Aplicar banco no Supabase
+## 9. Build de produção
 
-No painel do Supabase:
-
-1. Abra o SQL Editor.
-2. Execute [supabase/schema.sql](./supabase/schema.sql).
-3. Se desejar, execute [supabase/seed.sql](./supabase/seed.sql).
-
-Faça isso antes de colocar a app em produção para evitar erro de tabela/política ausente.
-
-## 8. Build da aplicação
-
-Ainda na pasta do projeto:
-
-```bash
-npm run build
-```
-
-Se quiser validar antes de subir:
+Rode:
 
 ```bash
 npm run lint
+npm run build
+```
+
+Se quiser validar testes:
+
+```bash
 npm run test
 ```
 
-## 9. Rodar com PM2
+## 10. Instalar e configurar PM2
 
 Instale o PM2 globalmente:
 
@@ -170,25 +225,25 @@ Instale o PM2 globalmente:
 npm install -g pm2
 ```
 
-Suba a aplicação:
+Suba a aplicação na mesma porta configurada no CloudPanel:
 
 ```bash
-pm2 start npm --name prodaps -- start -- --hostname 127.0.0.1 --port 3000
+pm2 start npm --name prodaps -- start -- --hostname 127.0.0.1 --port 3016
 ```
 
-Salve a configuração:
+Salve o processo:
 
 ```bash
 pm2 save
 ```
 
-Configure o start automático:
+Ative o startup automático:
 
 ```bash
 pm2 startup
 ```
 
-O comando acima vai devolver outro comando. Execute exatamente o comando retornado e depois rode de novo:
+O PM2 vai devolver um comando adicional. Execute esse comando e depois rode:
 
 ```bash
 pm2 save
@@ -203,55 +258,100 @@ pm2 restart prodaps
 pm2 stop prodaps
 ```
 
-## 10. Confirmar porta no CloudPanel
+## 11. Confirmar a porta no CloudPanel
 
-No CloudPanel, confirme que o site Node.js está apontando para a mesma porta usada no PM2:
+No CloudPanel, o site Node.js deve continuar apontando para:
 
-- `3000`
+- `3016`
 
-Essa é a porta interna da app. O acesso público continua pelo domínio no NGINX do CloudPanel.
+Ou seja:
 
-## 11. Ativar SSL
+- CloudPanel escuta no domínio público
+- a app Node.js responde internamente em `127.0.0.1:3016`
+
+## 12. Ativar SSL
 
 No CloudPanel:
 
-1. Abra o site.
-2. Vá em SSL.
-3. Emita o certificado Let's Encrypt.
-4. Ative o redirecionamento para HTTPS.
+1. abra o site `prodaps.kltecnologia.com`
+2. vá em `SSL`
+3. emita o certificado Let's Encrypt
+4. confirme que o domínio já resolve para `72.60.142.2`
 
-## 12. Checklist de validação
+Depois valide no navegador:
 
-Depois do deploy, valide:
+```text
+https://prodaps.kltecnologia.com
+```
 
-1. Landing abre normalmente.
-2. `/login` responde.
-3. As variáveis públicas carregam corretamente.
-4. O login no Supabase funciona.
-5. O dashboard autenticado abre sem erro.
-6. A VPS responde em HTTPS.
-7. O PM2 mantém o processo online após reboot.
+## 13. Checklist da instalação inicial
 
-## Fluxo de atualização
+Depois da instalação, confirme:
 
-Quando publicar uma nova versão:
+1. a landing abre em `https://prodaps.kltecnologia.com`
+2. `/login` responde
+3. o login no Supabase funciona
+4. o dashboard autenticado abre
+5. o PM2 está online
+6. o SSL está ativo
+7. a porta usada pela app é `3016`
+
+## Atualização de versão mantendo a branch main
+
+Quando você publicar alterações novas no GitHub, o fluxo de atualização será sempre a partir da branch `main`.
+
+Conecte no servidor:
 
 ```bash
-cd /home/<site-user>/htdocs/<dominio>
+ssh kltecnologia-prodaps@72.60.142.2
+cd /home/kltecnologia-prodaps/htdocs/prodaps.kltecnologia.com
+```
+
+Atualize o código:
+
+```bash
+git pull origin main
+```
+
+Reinstale dependências se necessário:
+
+```bash
+npm ci
+```
+
+Rebuild:
+
+```bash
+npm run build
+```
+
+Reinicie a app:
+
+```bash
+pm2 restart prodaps
+```
+
+Se houve mudança no banco:
+
+1. aplique o SQL no Supabase
+2. só depois reinicie o PM2
+
+## Fluxo rápido de atualização
+
+Este é o fluxo padrão que você provavelmente vai usar no dia a dia:
+
+```bash
+ssh kltecnologia-prodaps@72.60.142.2
+cd /home/kltecnologia-prodaps/htdocs/prodaps.kltecnologia.com
 git pull origin main
 npm ci
 npm run build
 pm2 restart prodaps
 ```
 
-Se houver mudança no banco:
-
-1. aplique o SQL no Supabase;
-2. depois faça o restart da aplicação.
-
 ## Troubleshooting
 
-### App não abre no domínio
+### O site não abre
 
 Cheque:
 
@@ -260,11 +360,11 @@ pm2 status
 pm2 logs prodaps
 ```
 
-Confirme também:
+E confirme:
 
-- o domínio aponta para a VPS;
-- a porta configurada no CloudPanel é `3000`;
-- a app iniciou sem erro de ambiente.
+- o domínio aponta para `72.60.142.2`
+- a porta no CloudPanel é `3016`
+- a app está rodando em PM2
 
 ### Erro de build
 
@@ -275,14 +375,14 @@ npm run lint
 npm run build
 ```
 
-Erros comuns:
+Problemas comuns:
 
-- variável de ambiente ausente;
-- versão incorreta do Node.js;
-- falha de tipagem TypeScript;
-- schema do Supabase ainda não aplicado.
+- variável de ambiente ausente
+- SQL do Supabase não aplicado
+- conflito de tipagem
+- dependências desatualizadas
 
-### Login quebra ou dashboard não carrega
+### Login quebra
 
 Revise:
 
@@ -290,34 +390,30 @@ Revise:
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- tabelas e policies do `schema.sql`
+- `schema.sql` aplicado corretamente
 
-### Processo cai após reinício da VPS
+### PM2 não sobe após reboot
 
-Confirme:
+Rode novamente:
 
 ```bash
-pm2 save
 pm2 startup
+pm2 save
 ```
 
-E execute o comando de `startup` que o PM2 mostrar.
+## Boas práticas
 
-## Boas práticas para produção
-
-- use SSH key, não apenas senha;
-- mantenha o Ubuntu atualizado;
-- não exponha a porta `3000` publicamente;
-- deixe o tráfego passar pelo NGINX do CloudPanel;
-- faça backup das credenciais e do projeto Supabase;
-- documente qualquer alteração manual feita no painel.
+- mantenha o deploy sempre saindo da branch `main`
+- não faça edição manual de código direto na VPS
+- registre qualquer ajuste operacional no repositório
+- preserve `.env` apenas no servidor
+- use backups do Supabase antes de mudanças destrutivas
 
 ## Referências oficiais
 
-- Next.js deploying: https://nextjs.org/docs/app/getting-started/deploying
+- CloudPanel instalação: https://www.cloudpanel.io/docs/v2/getting-started/other/
+- CloudPanel Add Site: https://www.cloudpanel.io/docs/v2/frontend-area/add-site/
+- CloudPanel PM2 para Node.js: https://www.cloudpanel.io/docs/v2/nodejs/deployment/pm2/
+- CloudPanel stack suportada: https://www.cloudpanel.io/docs/v2/technology-stack/
 - Next.js self-hosting: https://nextjs.org/docs/pages/guides/self-hosting
-- Next.js 16 e requisito de Node.js: https://nextjs.org/docs/app/guides/upgrading/version-16
-- Supabase SSR para Next.js: https://supabase.com/docs/guides/auth/server-side/nextjs
-- CloudPanel Node.js com PM2: https://www.cloudpanel.io/docs/v2/nodejs/deployment/pm2/
-- CloudPanel settings e app port: https://www.cloudpanel.io/docs/v2/frontend-area/settings/
-- Hostinger VPS Ubuntu: https://www.hostinger.com/vps/ubuntu-hosting
+- Next.js deploy: https://nextjs.org/docs/app/getting-started/deploying
